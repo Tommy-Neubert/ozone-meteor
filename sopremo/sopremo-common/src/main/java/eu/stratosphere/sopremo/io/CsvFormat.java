@@ -40,7 +40,7 @@ import eu.stratosphere.sopremo.type.IJsonNode;
 import eu.stratosphere.sopremo.type.IObjectNode;
 import eu.stratosphere.sopremo.type.ObjectNode;
 import eu.stratosphere.sopremo.type.TextNode;
-import eu.stratosphere.util.Equaler;
+import eu.stratosphere.util.CharSequenceUtil;
 
 @Name(noun = { "csv", "tsv" })
 public class CsvFormat extends SopremoFormat {
@@ -53,8 +53,6 @@ public class CsvFormat extends SopremoFormat {
 	public static final char AUTO = 0;
 
 	private char fieldDelimiter = AUTO;
-
-	private Boolean quotation;
 
 	private String[] keyNames = new String[0];
 
@@ -96,7 +94,6 @@ public class CsvFormat extends SopremoFormat {
 		final CsvFormat other = (CsvFormat) obj;
 		return this.fieldDelimiter == other.fieldDelimiter
 			&& this.numLineSamples == other.numLineSamples
-			&& Equaler.SafeEquals.equal(this.quotation, other.quotation)
 			&& Arrays.equals(this.keyNames, other.keyNames);
 	}
 
@@ -127,15 +124,6 @@ public class CsvFormat extends SopremoFormat {
 		return this.numLineSamples;
 	}
 
-	/**
-	 * Returns the quotation.
-	 * 
-	 * @return the quotation
-	 */
-	public Boolean getQuotation() {
-		return this.quotation;
-	}
-
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -143,7 +131,6 @@ public class CsvFormat extends SopremoFormat {
 		result = prime * result + this.fieldDelimiter;
 		result = prime * result + Arrays.hashCode(this.keyNames);
 		result = prime * result + this.numLineSamples;
-		result = prime * result + (this.quotation == null ? 0 : this.quotation.hashCode());
 		return result;
 	}
 
@@ -189,18 +176,6 @@ public class CsvFormat extends SopremoFormat {
 		this.numLineSamples = numLineSamples;
 	}
 
-	/**
-	 * Sets the quotation to the specified value.
-	 * 
-	 * @param quotation
-	 *        the quotation to set
-	 */
-	@Property
-	@Name(verb = "quote")
-	public void setQuotation(final Boolean quotation) {
-		this.quotation = quotation;
-	}
-
 	public CsvFormat withFieldDelimiter(final String fieldDelimiter) {
 		this.setFieldDelimiter(fieldDelimiter);
 		return this;
@@ -214,17 +189,6 @@ public class CsvFormat extends SopremoFormat {
 	 */
 	public CsvFormat withKeyNames(final String... keyNames) {
 		this.setKeyNames(keyNames);
-		return this;
-	}
-
-	/**
-	 * Sets the quotation to the specified value.
-	 * 
-	 * @param quotation
-	 *        the quotation to set
-	 */
-	public CsvFormat withQuotation(final Boolean quotation) {
-		this.setQuotation(quotation);
 		return this;
 	}
 
@@ -373,10 +337,6 @@ public class CsvFormat extends SopremoFormat {
 
 		private char fieldDelimiter;
 
-		private Boolean quotation;
-
-		private boolean usesQuotation;
-
 		private String[] keyNames;
 
 		private int numLineSamples;
@@ -499,14 +459,6 @@ public class CsvFormat extends SopremoFormat {
 			this.setState(State.TOP_LEVEL);
 
 			this.reader = new CountingReader(stream, this.getEncoding(), split.getStart() + split.getLength());
-			this.usesQuotation = this.quotation == Boolean.TRUE;
-			if (this.quotation == null) {
-				// very simple heuristic
-				for (int index = 0, ch; !this.usesQuotation && index < 1000 && (ch = this.reader.read()) != -1; index++)
-					this.usesQuotation = ch == '"';
-
-				this.reader.seek(this.splitStart);
-			}
 
 			if (this.keyNames.length == 0) {
 				if (split.getSplitNumber() > 0)
@@ -518,20 +470,12 @@ public class CsvFormat extends SopremoFormat {
 			// skip to beginning of the first record
 			if (this.splitStart > 0) {
 				this.reader.seek(this.pos = this.splitStart - 1);
-				if (this.usesQuotation) {
-					// TODO: how to detect if where are inside a quotation?
-					int ch;
-					for (; (ch = this.reader.read()) != -1 && ch != '\n'; this.pos++)
-						;
-					if (ch == -1)
-						this.endReached();
-				} else {
-					int ch;
-					for (; (ch = this.reader.read()) != -1 && ch != '\n'; this.pos++)
-						;
-					if (ch == -1)
-						this.endReached();
-				}
+				// TODO: how to detect if where are inside a quotation?
+				int ch;
+				for (; (ch = this.reader.read()) != -1 && ch != '\n'; this.pos++)
+					;
+				if (ch == -1)
+					this.endReached();
 			}
 		}
 
@@ -573,7 +517,7 @@ public class CsvFormat extends SopremoFormat {
 						if (lastCharPos >= 0 && this.builder.charAt(lastCharPos) == '\r')
 							this.builder.setLength(lastCharPos);
 						break readLoop;
-					} else if (this.usesQuotation && ch == '"')
+					} else if (ch == '"')
 						this.setState(State.QUOTED);
 					else
 						this.builder.append(ch);
@@ -648,8 +592,6 @@ public class CsvFormat extends SopremoFormat {
 
 		private String[] keyNames;
 
-		private Boolean quotation;
-
 		private Writer writer;
 
 		private transient IntList escapePositions = new IntArrayList();
@@ -699,7 +641,7 @@ public class CsvFormat extends SopremoFormat {
 			this.escapePositions.clear();
 			for (int index = 0, count = string.length(); index < count; index++) {
 				final char ch = string.charAt(index);
-				if (ch == '\"' || ch == '\\')
+				if (ch == '\"' || ch == '\\' || ch == this.fieldDelimiter)
 					this.escapePositions.add(index);
 			}
 
@@ -737,7 +679,8 @@ public class CsvFormat extends SopremoFormat {
 		 */
 		private void write(final IJsonNode node) throws IOException {
 			final String string = node.toString();
-			if (this.quotation != Boolean.FALSE) {
+			if (CharSequenceUtil.contains(string, this.fieldDelimiter) || CharSequenceUtil.contains(string, '\"')
+					|| CharSequenceUtil.contains(string, '\\') || CharSequenceUtil.contains(string, '\n')) {
 				this.writer.write('"');
 				this.writer.write(this.escapeString(string));
 				this.writer.write('"');

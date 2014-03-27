@@ -73,12 +73,11 @@ public class CsvTest extends MeteorParseTest {
 	@Test
 	public void shouldConfigureQuotationOff() {
 		final SopremoPlan actualPlan = this.parseScript(
-			"$input = read csv from 'file://input.any'" +
-				"  quote false;\n" +
+			"$input = read csv from 'file://input.any';\n" +
 				"write $input to 'file://output.json';");
 
 		final SopremoPlan expectedPlan = new SopremoPlan();
-		final Source input = new Source(new CsvFormat().withQuotation(false), "file://input.any");
+		final Source input = new Source(new CsvFormat(), "file://input.any");
 		final Sink output = new Sink("file://output.json").withInputs(input);
 		expectedPlan.setSinks(output);
 
@@ -88,12 +87,11 @@ public class CsvTest extends MeteorParseTest {
 	@Test
 	public void shouldConfigureQuotationOn() {
 		final SopremoPlan actualPlan = this.parseScript(
-			"$input = read csv from 'file://input.any'" +
-				"  quote true;\n" +
+			"$input = read csv from 'file://input.any';\n" +
 				"write $input to 'file://output.json';");
 
 		final SopremoPlan expectedPlan = new SopremoPlan();
-		final Source input = new Source(new CsvFormat().withQuotation(true), "file://input.any");
+		final Source input = new Source(new CsvFormat(), "file://input.any");
 		final Sink output = new Sink("file://output.json").withInputs(input);
 		expectedPlan.setSinks(output);
 

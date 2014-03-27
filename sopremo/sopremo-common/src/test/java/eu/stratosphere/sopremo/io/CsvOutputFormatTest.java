@@ -38,7 +38,7 @@ public class CsvOutputFormatTest extends OutputFormatTest {
 				"phone", "310/246-1501", "type", "american", "class", "'0'"),
 			JsonUtil.createObjectNode("id", "3", "name", "arnie morton's of chicago",
 				"addr", "435 s. la cienega blv.", "city", "los\nangeles", "phone", "310/246-1501",
-				"type", "american", "class", "'0'"), };
+				"type", "american", "class", "'0'") };
 
 		writeAndRead(format, values);
 	}

@@ -63,4 +63,12 @@ public class CharSequenceUtil {
 		return true;
 	}
 
+	public static boolean contains(String string, char fieldDelimiter) {
+		if(string.indexOf(fieldDelimiter)>-1){
+			return true;
+		} else{
+			return false;
+		}
+	}
+
 }
